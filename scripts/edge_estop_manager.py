@@ -27,6 +27,7 @@ def activate_e_stop():
             send_brakes()
         else:
             estop_relay.off()
+            disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
         rospy.loginfo("E-Stop: Activated")
 
 
@@ -68,6 +69,7 @@ def send_brakes():
 
     msg.pedal_cmd = 0.2  # Release some brake pressure
     brakes_pub.publish(msg)
+    disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
 
 
 def send_states():
@@ -170,6 +172,7 @@ if __name__ == "__main__":
         rospy.Timer(heartbeat_rate, send_heartbeat)
         # Software Stopping via Brakes
         brakes_pub = rospy.Publisher("vehicle/brake_cmd", BrakeCmd, queue_size=1)
+        disable_pub = rospy.Publisher("vehicle/disable", Empty, queue_size=1)
 
         # Define subscribers --------------------------------------------------
         # Heartbeat - verify connection with main computer

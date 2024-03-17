@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import rospy
-from std_msgs.msg import Bool, Header
+from std_msgs.msg import Bool, Header, Empty
 from dbw_polaris_msgs.msg import BrakeCmd
 
 
@@ -30,6 +30,7 @@ def send_brakes():
 
     msg.pedal_cmd = 0.2  # Release some brake pressure
     brakes_pub.publish(msg)
+    disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
 
 
 def check_heartbeat():
@@ -75,6 +76,7 @@ if __name__ == "__main__":
         rospy.Timer(heartbeat_rate, send_heartbeat)
         # Software Stopping via Brakes
         brakes_pub = rospy.Publisher("vehicle/brake_cmd", BrakeCmd, queue_size=1)
+        disable_pub = rospy.Publisher("vehicle/disable", Empty, queue_size=1)
 
         # Define subscribers --------------------------------------------------
         # Heartbeat - verify connection with edge computer
