@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-import rospy
-from std_msgs.msg import Bool, Header, Empty
-from dbw_polaris_msgs.msg import BrakeCmd
+import os
+import sys
 
+import actor_ros
+import rospy
+from dbw_polaris_msgs.msg import BrakeCmd
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool, Empty, Header
+
+#actor = actor_ros.scripting_tools.ActorScriptTools() 
 
 def send_heartbeat():
     msg = Header()
@@ -33,7 +39,7 @@ def send_brakes():
     disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
 
 
-def check_heartbeat():
+def check_heartbeat(msg):
     global time_last_heartbeat, heartbeat_timeout
     # Check if received heartbeat is within timeout
     if rospy.Time.now() - time_last_heartbeat > heartbeat_timeout:
@@ -55,6 +61,19 @@ def heartbeat_callback(msg):
 def estop_state_callback(msg):
     global estop_is_activated
     estop_is_activated = msg.data
+    
+def estop_trigger_callback(msg):
+    
+    print("!!!!! E-stop triggered !!!!!")
+        
+    #os.system('rosnode kill /auto_run_node &')
+    #for i in range(20):
+    pub_twist_cmd.publish(twist_msg)
+        #rate.sleep()
+    #os.system('rosrun igvc_python auto_run.py %s &' % sys.argv[1])
+    #rospy.loginfo("E-Stop: Triggered by user")
+    #send_brakes()
+    #actor.stop_vehicle(duration=5.0)
 
 
 if __name__ == "__main__":
@@ -69,10 +88,10 @@ if __name__ == "__main__":
         heartbeat_rate = rospy.Duration(1 / 100)  # 100Hz
 
         # Define publishers ---------------------------------------------------
-        estop_state_pub = rospy.Publisher("actor/e_stop/state", Bool, queue_size=1)
-        software_state_pub = rospy.Publisher("actor/e_stop/software_button", Bool, queue_size=1)
+        estop_state_pub = rospy.Publisher("actor/estop/state", Bool, queue_size=1)
+        software_state_pub = rospy.Publisher("actor/estop/software_button", Bool, queue_size=1)
         # Heartbeat - send heartbeat so that edge computer can verify connection with main computer
-        heartbeat_pub = rospy.Publisher("actor/e_stop/heartbeat_core", Header, queue_size=1)
+        heartbeat_pub = rospy.Publisher("actor/estop/heartbeat_core", Header, queue_size=1)
         rospy.Timer(heartbeat_rate, send_heartbeat)
         # Software Stopping via Brakes
         brakes_pub = rospy.Publisher("vehicle/brake_cmd", BrakeCmd, queue_size=1)
@@ -84,6 +103,13 @@ if __name__ == "__main__":
         rospy.Timer(heartbeat_timeout, check_heartbeat)
         # State
         rospy.Subscriber("actor/estop/state", Bool, estop_state_callback)
+        # Simulator - E-Stop
+        rospy.Subscriber("actor/estop/trigger", Empty, estop_trigger_callback)
+        pub_twist_cmd = rospy.Publisher('/actor/cmd_vel', Twist, queue_size=1)
+
+        twist_msg = Twist()
+        twist_msg.linear.x = 0
+        twist_msg.angular.z = 0
 
         # Keep the node running
         rospy.spin()

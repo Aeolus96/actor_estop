@@ -1,0 +1,5 @@
+<launch>
+    
+    <node pkg="actor_estop" type="core_estop_manager.py" name="core_estop_manager" output="screen" />
+
+</launch>
