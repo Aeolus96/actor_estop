@@ -3,6 +3,7 @@
 # Create a shell script to run your ROS node --------------
 echo "Creating ROS node launch script..."
 
+mkdir -p $HOME/catkin_ws/src/actor_estop/temp
 echo "#!/bin/bash" > $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 echo "source /opt/ros/noetic/setup.bash" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 echo "source ~/catkin_ws/devel/setup.bash" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
