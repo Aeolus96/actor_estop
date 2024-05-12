@@ -110,7 +110,7 @@ if __name__ == "__main__":
         rospy.init_node("core_estop_manager")
 
         # Variables -----------------------------------------------------------
-        is_simulated = rospy.get_param("is_simulated")
+        is_simulated = rospy.get_param("estop_is_simulated")
 
         estop_is_activated = False
         software_button = False

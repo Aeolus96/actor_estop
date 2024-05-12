@@ -24,6 +24,7 @@ fi
 # Create a systemd service
 echo "Creating systemd service..."
 
+mkdir -p $HOME/catkin_ws/src/actor_estop/temp
 echo "[Unit]" > $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "Description=actor_estop ROS Node" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "After=network.target" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service

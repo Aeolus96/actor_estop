@@ -1,5 +1,9 @@
 <launch>
-    
+
+    <arg name="estop_is_simulated" default="false" />
+
+    <param name="estop_is_simulated" value="$(arg estop_is_simulated)" />
+
     <node pkg="actor_estop" type="core_estop_manager.py" name="core_estop_manager" output="screen" />
 
 </launch>
