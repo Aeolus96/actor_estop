@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Set ROS MASTER URI
+echo "Setting ROS MASTER URI..."
+
+echo "export ROS_IP=$(hostname -I | cut -d' ' -f1)" >> $HOME/.bashrc
+read -p "PLEASE ENTER ROS MASTER'S IP (0.0.0.0): " master_ip
+echo "export ROS_MASTER_URI=http://$master_ip:11311/" >> $HOME/.bashrc
+
 # Create a shell script to run your ROS node --------------
 echo "Creating ROS node launch script..."
 
@@ -7,9 +14,6 @@ mkdir -p $HOME/catkin_ws/src/actor_estop/temp
 echo "#!/bin/bash" > $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 echo "source /opt/ros/noetic/setup.bash" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 echo "source ~/catkin_ws/devel/setup.bash" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
-echo "export ROS_IP=$(hostname -I | cut -d' ' -f1)" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
-read -p "PLEASE ENTER ROS MASTER'S IP (0.0.0.0): " master_ip
-echo "export ROS_MASTER_URI=$master_ip:11311" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 echo "rosrun actor_estop/temp edge_estop_manager.py" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
 
 # Make the script executable

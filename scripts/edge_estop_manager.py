@@ -5,6 +5,17 @@ from dbw_polaris_msgs.msg import BrakeCmd
 from gpiozero import LED, Button
 from std_msgs.msg import Bool, Empty, Header
 
+# Initialize GPIO devices
+PHYSICAL_BUTTON_PIN = "BCM4"  # GPIO 4, pin 7
+WIRELESS_BUTTON_PIN = "BCM17"  # GPIO 17, pin 11
+ESTOP_RELAY_PIN = "BCM21"  # GPIO 21, pin 40, relay board channel 3
+FLASHING_LIGHT_PIN = "BCM26"  # GPIO 26, pin 37, relay board channel 1
+
+button_loop = Button(PHYSICAL_BUTTON_PIN, pull_up=True, bounce_time=0.1)
+wireless_loop = Button(WIRELESS_BUTTON_PIN, pull_up=True, bounce_time=0.1)
+estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
+flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
+
 
 def activate_estop():
     global estop_is_activated
@@ -17,7 +28,7 @@ def activate_estop():
             if estop_relay.is_lit:  # Check relay state before turning it off
                 estop_relay.off()
             disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
-        rospy.loginfo("E-Stop: Activated")
+        rospy.loginfo("E-Stop: ACTIVATED !!")
 
 
 def reset_estop():
@@ -30,7 +41,7 @@ def reset_estop():
         else:  # Hardware E-Stop using relay board
             if not estop_relay.is_lit:  # Check relay state before turning it on
                 estop_relay.on()
-        rospy.loginfo("E-Stop: Reset")
+        rospy.loginfo("E-Stop: RESET !!")
 
 
 def send_heartbeat(TimerEvent):
@@ -79,10 +90,9 @@ def check_heartbeat(TimerEvent):
     # Check if received heartbeat is within timeout
     if rospy.Time.now() - time_last_heartbeat > heartbeat_timeout:
         if not estop_is_activated:  # Avoid activating if already activated
+            rospy.loginfo("E-Stop: Heartbeat timed out")
             software_button = True
             activate_estop()
-
-        rospy.loginfo("E-Stop: Triggered due to heartbeat timeout")
 
 
 def heartbeat_callback(msg):
@@ -90,29 +100,29 @@ def heartbeat_callback(msg):
     time_last_heartbeat = msg.stamp
 
 
-def physical_button(activated):
+def update_physical_button(activated: bool):
     global phyiscal_button
     if activated and not phyiscal_button:
         phyiscal_button = True
-        rospy.loginfo("E-Stop: Triggered due to physical button press")
+        rospy.loginfo("E-Stop: Physical button pressed")
         activate_estop()
 
     elif not activated and phyiscal_button:
         phyiscal_button = False
-        rospy.loginfo("E-Stop: Reset due to physical button release")
+        rospy.loginfo("E-Stop: Physical button released")
         reset_estop()
 
 
-def wireless_button(activated):
+def update_wireless_button(activated: bool):
     global wireless_button
     if activated and not wireless_button:
         wireless_button = True
-        rospy.loginfo("E-Stop: Triggered due to wireless button press")
+        rospy.loginfo("E-Stop: Wireless button pressed")
         activate_estop()
 
     elif not activated and wireless_button:
         wireless_button = False
-        rospy.loginfo("E-Stop: Reset due to wireless button release")
+        rospy.loginfo("E-Stop: Wireless button released")
         reset_estop()
 
 
@@ -138,8 +148,14 @@ def dbw_state_callback(msg):
 
 
 def check_gpio(TimerEvent):
-    phyiscal_button(True if button_loop.is_pressed else False)
-    wireless_button(True if wireless_loop.is_pressed else False)
+    if button_loop.is_pressed:
+        update_physical_button(activated=True)
+    else:
+        update_physical_button(activated=False)
+    if wireless_loop.is_pressed:
+        update_wireless_button(activated=True)
+    else:
+        update_wireless_button(activated=False)
 
 
 if __name__ == "__main__":
@@ -184,16 +200,6 @@ if __name__ == "__main__":
         rospy.Subscriber("actor/estop/reset", Empty, reset_callback)
 
         # Define GPIO and Relay Devices ---------------------------------------
-        # Initialize GPIO devices
-        PHYSICAL_BUTTON_PIN = "BCM4"  # GPIO 4, pin 7
-        WIRELESS_BUTTON_PIN = "BCM17"  # GPIO 17, pin 11
-        ESTOP_RELAY_PIN = "BCM21"  # GPIO 21, pin 40, relay board channel 3
-        FLASHING_LIGHT_PIN = "BCM26"  # GPIO 26, pin 37, relay board channel 1
-
-        button_loop = Button(PHYSICAL_BUTTON_PIN, pull_up=True, bounce_time=0.1)
-        wireless_loop = Button(WIRELESS_BUTTON_PIN, pull_up=True, bounce_time=0.1)
-        estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
-        flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
         gpio_rate = rospy.Duration(1 / 100)  # 100Hz
         rospy.Timer(gpio_rate, check_gpio)
 
