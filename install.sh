@@ -1,27 +1,25 @@
 #!/bin/bash
 
+# Install base packages
+pip3 install -r $HOME/catkin_ws/src/actor_estop/requirements.txt
+
 # Set ROS IP
 echo "Setting ROS IP..."
 ROS_IP=$(hostname -I | cut -d' ' -f1)
-echo "export ROS_IP=$ROS_IP" >> $HOME/.bashrc
+echo "ROS_IP: $ROS_IP"
 
 # Set ROS MASTER URI
 echo "Setting ROS MASTER URI..."
 read -p "PLEASE ENTER ROS MASTER'S IP (0.0.0.0): " MASTER_IP
-echo "export ROS_MASTER_URI=http://$MASTER_IP:11311/" >> $HOME/.bashrc
+echo "MASTER'S IP: $MASTER_IP"
 
-# Create a shell script to run your ROS node
-echo "Creating ROS node launch script..."
-
-mkdir -p $HOME/catkin_ws/src/actor_estop/temp
-echo "#!/bin/bash" > $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
-echo "source $HOME/.bashrc" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
-echo "rosrun actor_estop edge_estop_manager.py" >> $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
-
-# Make the script executable
-echo "Making script executable..."
-
-sudo chmod +x $HOME/catkin_ws/src/actor_estop/temp/rosrun_estop.sh
+# Ask for confirmation
+read -p "Do you want to continue? [y/n] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+    exit 1
+fi
 
 # Create a systemd service
 echo "Creating systemd service..."
@@ -33,8 +31,8 @@ echo "" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "[Service]" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "User=$USER" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "Environment=\"ROS_IP=$ROS_IP\"" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
-echo "Environment=\"ROS_MASTER_URI=$MASTER_IP\"" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
-echo "ExecStart=/bin/bash /home/ubuntu/catkin_ws/src/actor_estop/temp/rosrun_estop.sh >> /home/ubuntu/catkin_ws/src/actor_estop/temp/rosrun_estop.log 2>&1" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
+echo "Environment=\"ROS_MASTER_URI=http://$MASTER_IP:11311/\"" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
+echo "ExecStart=/usr/bin/env bash -c \"source $HOME/.bashrc && source $HOME/catkin_ws/devel/setup.bash && rosrun actor_estop edge_estop_manager.py\"" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "Restart=always" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "RestartSec=5" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
 echo "" >> $HOME/catkin_ws/src/actor_estop/temp/estop.service
