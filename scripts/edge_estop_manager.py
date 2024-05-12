@@ -1,49 +1,39 @@
 #!/usr/bin/env python3
+
 import rospy
+from dbw_polaris_msgs.msg import BrakeCmd
 from gpiozero import LED, Button
 from std_msgs.msg import Bool, Empty, Header
-from dbw_polaris_msgs.msg import BrakeCmd
 
 
-# Initialize GPIO devices
-PHYSICAL_BUTTON_PIN = 17
-WIRELESS_BUTTON_PIN = 27
-ESTOP_RELAY_PIN = 22
-FLASHING_LIGHT_PIN = 23
-
-button_loop = Button(PHYSICAL_BUTTON_PIN, pull_up=True)  # physical buttons loop
-wireless_loop = Button(WIRELESS_BUTTON_PIN, pull_up=True)  # wireless buttons loop
-estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
-flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
-# NOTE: relay is meant to powered on when E-Stop is not triggered. If the system is powered off, estop is triggered
-
-
-def activate_e_stop():
+def activate_estop():
     global estop_is_activated
     # Avoid activating if already activated
     if not estop_is_activated:
         estop_is_activated = True
-        if soft_estop_only:
+        if software_estop_only:
             send_brakes()
-        else:
-            estop_relay.off()
+        else:  # Hardware E-Stop using relay board
+            if estop_relay.is_lit:  # Check relay state before turning it off
+                estop_relay.off()
             disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
         rospy.loginfo("E-Stop: Activated")
 
 
-def reset_e_stop():
+def reset_estop():
     global estop_is_activated
     # Check all loops to make sure E-Stop is safe to reset
     if not phyiscal_button and not wireless_button and not software_button:
         estop_is_activated = False
-        if soft_estop_only:
+        if software_estop_only:
             pass  # No need to reset brakes, they will timeout after the send_brakes() call
-        else:
-            estop_relay.on()
+        else:  # Hardware E-Stop using relay board
+            if not estop_relay.is_lit:  # Check relay state before turning it on
+                estop_relay.on()
         rospy.loginfo("E-Stop: Reset")
 
 
-def send_heartbeat():
+def send_heartbeat(TimerEvent):
     msg = Header()
     msg.stamp = rospy.Time.now()
     heartbeat_pub.publish(msg)
@@ -72,7 +62,7 @@ def send_brakes():
     disable_pub.publish(Empty())  # Disable vehicle control using ROS messages
 
 
-def send_states():
+def send_states(TimerEvent):
     msg = Bool()
     msg.data = estop_is_activated
     estop_state_pub.publish(msg)
@@ -84,13 +74,13 @@ def send_states():
     software_state_pub.publish(msg)
 
 
-def check_heartbeat():
+def check_heartbeat(TimerEvent):
     global time_last_heartbeat, heartbeat_timeout, software_button
     # Check if received heartbeat is within timeout
     if rospy.Time.now() - time_last_heartbeat > heartbeat_timeout:
         if not estop_is_activated:  # Avoid activating if already activated
             software_button = True
-            activate_e_stop()
+            activate_estop()
 
         rospy.loginfo("E-Stop: Triggered due to heartbeat timeout")
 
@@ -102,33 +92,35 @@ def heartbeat_callback(msg):
 
 def physical_button(activated):
     global phyiscal_button
-    if activated:
+    if activated and not phyiscal_button:
         phyiscal_button = True
-        activate_e_stop()
         rospy.loginfo("E-Stop: Triggered due to physical button press")
-    else:
+        activate_estop()
+
+    elif not activated and phyiscal_button:
         phyiscal_button = False
-        reset_e_stop()
         rospy.loginfo("E-Stop: Reset due to physical button release")
+        reset_estop()
 
 
 def wireless_button(activated):
     global wireless_button
-    if activated:
+    if activated and not wireless_button:
         wireless_button = True
-        activate_e_stop()
         rospy.loginfo("E-Stop: Triggered due to wireless button press")
-    else:
+        activate_estop()
+
+    elif not activated and wireless_button:
         wireless_button = False
-        reset_e_stop()
         rospy.loginfo("E-Stop: Reset due to wireless button release")
+        reset_estop()
 
 
 def trigger_callback(msg):
     global software_button
     if not estop_is_activated:  # Avoid activating if already activated
         software_button = True
-        activate_e_stop()
+        activate_estop()
 
 
 def reset_callback(msg):
@@ -136,13 +128,18 @@ def reset_callback(msg):
     if estop_is_activated:  # Avoid resetting if already reset
         if software_button:
             software_button = False
-            reset_e_stop()
+            reset_estop()
         else:  # E-Stop is not triggered by software, so hardware reset is required
-            rospy.loginfo("E-Stop: Hardware e-stop reset required")
+            rospy.loginfo("E-Stop: Release Hardware e-stop to reset")
 
 
 def dbw_state_callback(msg):
     flashing_lights_relay.on() if msg.data else flashing_lights_relay.off()
+
+
+def check_gpio(TimerEvent):
+    phyiscal_button(True if button_loop.is_pressed else False)
+    wireless_button(True if wireless_loop.is_pressed else False)
 
 
 if __name__ == "__main__":
@@ -150,7 +147,8 @@ if __name__ == "__main__":
         rospy.init_node("edge_estop_manager")
 
         # Variables -----------------------------------------------------------
-        soft_estop_only = False  # set to True if only soft estop is being used
+        software_estop_only = False  # set to True if only soft estop is being used
+        # Software estop means, sending brakes via ROS messages and NOT direct hardware relay
         estop_is_activated = False
         phyiscal_button = False
         wireless_button = False
@@ -162,14 +160,16 @@ if __name__ == "__main__":
 
         # Define publishers ---------------------------------------------------
         # States
-        estop_state_pub = rospy.Publisher("actor/e_stop/state", Bool, queue_size=1)
-        physical_button_state_pub = rospy.Publisher("actor/e_stop/physical_button", Bool, queue_size=1)
-        wireless_state_pub = rospy.Publisher("actor/e_stop/wireless_button", Bool, queue_size=1)
-        software_state_pub = rospy.Publisher("actor/e_stop/software_button", Bool, queue_size=1)
+        estop_state_pub = rospy.Publisher("actor/estop/state", Bool, queue_size=1)
+        physical_button_state_pub = rospy.Publisher("actor/estop/physical_button", Bool, queue_size=1)
+        wireless_state_pub = rospy.Publisher("actor/estop/wireless_button", Bool, queue_size=1)
+        software_state_pub = rospy.Publisher("actor/estop/software_button", Bool, queue_size=1)
         rospy.Timer(heartbeat_rate, send_states)
+
         # Heartbeat - send heartbeat so that main computer can verify connection with edge computer
-        heartbeat_pub = rospy.Publisher("actor/e_stop/heartbeat_edge", Header, queue_size=1)
+        heartbeat_pub = rospy.Publisher("actor/estop/heartbeat_edge", Header, queue_size=1)
         rospy.Timer(heartbeat_rate, send_heartbeat)
+
         # Software Stopping via Brakes
         brakes_pub = rospy.Publisher("vehicle/brake_cmd", BrakeCmd, queue_size=1)
         disable_pub = rospy.Publisher("vehicle/disable", Empty, queue_size=1)
@@ -178,15 +178,26 @@ if __name__ == "__main__":
         # Heartbeat - verify connection with main computer
         rospy.Subscriber("actor/estop/heartbeat_core", Header, heartbeat_callback)
         rospy.Timer(heartbeat_timeout, check_heartbeat)
+
         # Software Trigger and Reset using ROS
-        rospy.Subscriber("actor/e_stop/trigger", Empty, trigger_callback)
-        rospy.Subscriber("actor/e_stop/reset", Empty, reset_callback)
-        # Assign callbacks for physical and wireless loops - press and release events
-        button_loop.when_pressed = lambda: physical_button(activated=True)
-        button_loop.when_released = lambda: physical_button(activated=False)
-        wireless_loop.when_pressed = lambda: wireless_button(activated=True)
-        wireless_loop.when_released = lambda: wireless_button(activated=False)
-        # DBW active state - used for flashing lights
+        rospy.Subscriber("actor/estop/trigger", Empty, trigger_callback)
+        rospy.Subscriber("actor/estop/reset", Empty, reset_callback)
+
+        # Define GPIO and Relay Devices ---------------------------------------
+        # Initialize GPIO devices
+        PHYSICAL_BUTTON_PIN = "BCM4"  # GPIO 4, pin 7
+        WIRELESS_BUTTON_PIN = "BCM17"  # GPIO 17, pin 11
+        ESTOP_RELAY_PIN = "BCM21"  # GPIO 21, pin 40, relay board channel 3
+        FLASHING_LIGHT_PIN = "BCM26"  # GPIO 26, pin 37, relay board channel 1
+
+        button_loop = Button(PHYSICAL_BUTTON_PIN, pull_up=True, bounce_time=0.1)
+        wireless_loop = Button(WIRELESS_BUTTON_PIN, pull_up=True, bounce_time=0.1)
+        estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
+        flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
+        gpio_rate = rospy.Duration(1 / 100)  # 100Hz
+        rospy.Timer(gpio_rate, check_gpio)
+
+        # DBW active state - used for flashing lights on relay board
         rospy.Subscriber("vehicle/dbw_enabled", Bool, dbw_state_callback)
 
         # Keep the node running
