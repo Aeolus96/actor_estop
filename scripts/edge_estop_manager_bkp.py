@@ -2,7 +2,7 @@
 
 import rospy
 from dbw_polaris_msgs.msg import BrakeCmd
-from gpiozero import LED, LineSensor
+from gpiozero import LED, Button
 from std_msgs.msg import Bool, Empty, Header
 
 # Initialize GPIO devices
@@ -11,8 +11,8 @@ WIRELESS_BUTTON_PIN = "BCM17"  # GPIO 17, pin 11
 ESTOP_RELAY_PIN = "BCM21"  # GPIO 21, pin 40, relay board channel 3
 FLASHING_LIGHT_PIN = "BCM26"  # GPIO 26, pin 37, relay board channel 1
 
-button_loop = LineSensor(PHYSICAL_BUTTON_PIN, pull_up=True, threshold=0.5, queue_len=10, sample_rate=100)
-wireless_loop = LineSensor(WIRELESS_BUTTON_PIN, pull_up=True, threshold=0.5, queue_len=10, sample_rate=100)
+button_loop = Button(PHYSICAL_BUTTON_PIN, pull_up=True, bounce_time=0.1)
+wireless_loop = Button(WIRELESS_BUTTON_PIN, pull_up=True, bounce_time=0.1)
 estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
 flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
 
@@ -148,11 +148,11 @@ def dbw_state_callback(msg):
 
 
 def check_gpio(TimerEvent):
-    if button_loop.is_active:
+    if button_loop.is_pressed:
         update_physical_button(activated=True)
     else:
         update_physical_button(activated=False)
-    if wireless_loop.is_active:
+    if wireless_loop.is_pressed:
         update_wireless_button(activated=True)
     else:
         update_wireless_button(activated=False)
