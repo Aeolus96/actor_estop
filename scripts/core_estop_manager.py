@@ -77,7 +77,7 @@ def check_heartbeat(TimerEvent):
 
 def heartbeat_callback(msg):
     global time_last_heartbeat
-    time_last_heartbeat = msg.stamp
+    time_last_heartbeat = rospy.Time.now()
 
 
 def estop_state_callback(msg):

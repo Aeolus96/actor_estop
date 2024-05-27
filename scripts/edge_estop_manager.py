@@ -4,17 +4,20 @@ import rospy
 from dbw_polaris_msgs.msg import BrakeCmd
 from gpiozero import LED, LineSensor
 from std_msgs.msg import Bool, Empty, Header
+import sys
+import signal
+import os
 
 # Initialize GPIO devices
 PHYSICAL_BUTTON_PIN = "BCM4"  # GPIO 4, pin 7
-WIRELESS_BUTTON_PIN = "BCM17"  # GPIO 17, pin 11
+WIRELESS_BUTTON_PIN = "BCM18"  # GPIO 18, pin 12
 ESTOP_RELAY_PIN = "BCM21"  # GPIO 21, pin 40, relay board channel 3
 FLASHING_LIGHT_PIN = "BCM26"  # GPIO 26, pin 37, relay board channel 1
 
-button_loop = LineSensor(PHYSICAL_BUTTON_PIN, pull_up=True, queue_len=100)
-wireless_loop = LineSensor(WIRELESS_BUTTON_PIN, pull_up=True, queue_len=100)
-estop_relay = LED(ESTOP_RELAY_PIN, active_high=True)  # relay board
-flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=True)  # relay board
+button_loop = LineSensor(PHYSICAL_BUTTON_PIN, pull_up=False, queue_len=50)
+wireless_loop = LineSensor(WIRELESS_BUTTON_PIN, pull_up=False, queue_len=50)
+estop_relay = LED(ESTOP_RELAY_PIN, active_high=False)  # relay board
+flashing_lights_relay = LED(FLASHING_LIGHT_PIN, active_high=False)  # relay board
 
 
 def activate_estop():
@@ -61,7 +64,7 @@ def send_brakes():
     rate = rospy.Rate(50)  # Hz
 
     rospy.loginfo("E-Stop: Sending brakes")
-    while (rospy.Time.now() - first_time) < brake_timeout:
+    while (rospy.Time.now() - first_time) < brake_timeout and not rospy.is_shutdown():
         brakes_pub.publish(msg)
         msg.pedal_cmd += 0.005  # Increase pedal value
         msg.pedal_cmd = min(msg.pedal_cmd, 0.4)  # 0.4 is maximum brake value. Prevents motor stall
@@ -93,11 +96,15 @@ def check_heartbeat(TimerEvent):
             rospy.loginfo("E-Stop: Heartbeat timed out")
             software_button = True
             activate_estop()
+            
+    if rospy.Time.now() - time_last_heartbeat > rospy.Duration(2):
+        print("exiting process")
+        os.kill(os.getpid(),signal.SIGKILL)
 
 
 def heartbeat_callback(msg):
     global time_last_heartbeat
-    time_last_heartbeat = msg.stamp
+    time_last_heartbeat = rospy.Time.now()
 
 
 def update_physical_button(activated: bool):
@@ -148,7 +155,7 @@ def dbw_state_callback(msg):
 
 
 def check_gpio(TimerEvent):
-    if button_loop.is_active:
+    if not button_loop.is_active:
         update_physical_button(activated=True)
     else:
         update_physical_button(activated=False)
@@ -210,4 +217,5 @@ if __name__ == "__main__":
         rospy.spin()
 
     except rospy.ROSInterruptException:
-        pass
+        print("exiting process")
+        os.kill(os.getpid(),signal.SIGKILL)

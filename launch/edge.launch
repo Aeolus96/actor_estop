@@ -1,0 +1,5 @@
+<launch>
+
+    <node pkg="actor_estop" type="edge_estop_manager.py" name="edge_estop_manager" output="screen" />
+
+</launch>

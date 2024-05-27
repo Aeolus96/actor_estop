@@ -1,9 +1,9 @@
-from gpiozero import LED, Button
+from gpiozero import LED, Button, LineSensor
 import time
 
 # Inputs:
-button_1 = Button("BCM4", bounce_time=0.1)  # GPIO 4, pin 7
-button_2 = Button("BCM17", pull_up=False, bounce_time=0.1)  # GPIO 17, pin 11
+button_1 = LineSensor("BCM4", pull_up=False, queue_len=50)  # GPIO 4, pin 7
+button_2 = LineSensor("BCM18", pull_up=False, queue_len=50)  # GPIO 18, pin 12
 
 # Outputs:
 ch1_relay = LED("BCM26")  # GPIO 26, pin 37
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     while True:
         print(button_1.value, button_2.value)
 
-        if button_1.is_pressed:
+        if button_2.is_active:
             print(ch1_relay.is_lit)
             if not ch1_relay.value:
                 button_pressed(True)
@@ -38,4 +38,4 @@ if __name__ == "__main__":
         if time.time() > start_time + 10:
             break
 
-        time.sleep(1)
+        time.sleep(0.01)
